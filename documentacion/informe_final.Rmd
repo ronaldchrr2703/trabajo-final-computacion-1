@@ -1,0 +1,75 @@
+---
+title: "Análisis Estadístico del Comportamiento de Ventas Minoristas"
+subtitle: "Informe Académico - Computación I"
+author: "ronald Camacho"
+date: "2026-11-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Resumen {-}
+
+El presente informe académico analiza la base de datos transaccional de una cadena minorista (`retail_store_sales.csv`) durante el período 2022-2025. El estudio se estructura en torno a tres ejes fundamentales: (1) el impacto de los descuentos comerciales sobre la cantidad de artículos comprados y el ticket monetario promedio; (2) la comparación de desempeño operativo y financiero entre compras presenciales (*In-store*) y digitales (*Online*); y (3) la caracterización del portafolio por categoría de producto y su interacción con los métodos de pago. El análisis se desarrolla íntegramente en R bajo principios de reproducibilidad, control de versiones en GitHub y conexión remota a datos en la nube.
+
+---
+
+# Introducción {-}
+
+En el sector minorista (*retail*), la toma de decisiones informada exige contrastar las intuiciones comerciales con evidencia estadística rigurosa. Frecuentemente se asume que las políticas de descuento incentivan una mayor compra física o que los canales virtuales desplazan a los establecimientos físicos en volumen de gasto. A través de este trabajo práctico de la asignatura Computación I de la Universidad Central de Venezuela, se aplican técnicas de estadística descriptiva, depuración de microdatos y visualización computacional para evaluar el comportamiento transaccional del negocio.
+
+---
+
+# Capítulo 1: Planteamiento del Problema
+
+La gestión comercial de la cadena requiere optimizar sus márgenes y comprender a sus clientes. Para ello, se formulan las siguientes preguntas de investigación:
+
+1. **Efecto de los Descuentos:** ¿Los descuentos comerciales aumentan la cantidad de unidades compradas? ¿En qué categorías se aplican con mayor frecuencia? ¿El ticket monetario medio sube o baja cuando hay descuento?
+2. **Comparación Omnicanal (Online vs. In-store):** ¿Existen diferencias significativas en el volumen de transacciones y facturación total entre ambos canales? ¿Cuáles son las categorías preferidas y medios de pago predominantes en cada uno?
+3. **Comportamiento por Categoría y Medios de Pago:** ¿Cuál es el ranking de categorías según ventas y dinero recaudado? ¿Cómo varía el ticket medio y precio unitario entre ellas? ¿Cuál es el medio de pago preferido por categoría?
+
+## Justificación
+
+El estudio empírico de estos microdatos permite a la gerencia diseñar promociones basadas en la elasticidad real de la demanda y optimizar la logística de canales y cajas de pago, evitando la erosión innecesaria del margen comercial.
+
+## Objetivos
+
+### Objetivo General
+
+Evaluar estadísticamente el comportamiento de las ventas minoristas en la base de datos `retail_store_sales.csv`, analizando el impacto de los descuentos, la distribución del gasto entre canales de venta y la relación entre categorías de producto y métodos de pago.
+
+### Objetivos Específicos
+
+1. Determinar el efecto de los descuentos sobre la media, mediana y desviación estándar de *Quantity* y *Total Spent*.
+2. Comparar el desempeño transaccional y monetario entre los canales *Online* e *In-store*.
+3. Establecer el ranking integral de categorías por número de transacciones, cantidad de unidades y facturación total.
+4. Implementar un flujo de trabajo reproducible en R Markdown conectado a datos en la nube y versionado en GitHub.
+
+## Cobertura
+
+### Cobertura Horizontal (Variables Consideradas)
+
+```{r}
+vars_df <- data.frame(
+  Nombre_Variable = c("Transaction ID", "Customer ID", "Category", "Item", 
+                      "Price Per Unit", "Quantity", "Total Spent", "Payment Method", 
+                      "Location", "Transaction Date", "Discount Applied"),
+  Tipo_Dato_R = c("Factor / Character", "Factor / Character", "Factor", "Factor / Character",
+                  "Numeric (Double)", "Numeric (Integer)", "Numeric (Double)", "Factor",
+                  "Factor", "Date", "Logical / Factor"),
+  Escala = c("Nominal", "Nominal", "Nominal", "Nominal",
+             "Razón", "Razón (Discreta)", "Razón (Continua)", "Nominal",
+             "Nominal", "Intervalo / Temporal", "Nominal (Binaria)")
+)
+```
+
+
+### Cobertura Vertical
+
+El universo consta de 12,575 transacciones originales, abarcando una muestra depurada final de 11,971 registros comerciales válidos.
+
+## Periodo de Referencia
+
+Las transacciones corresponden al período comprendido entre el **01 de enero de 2022** y el **18 de enero de 2025**.
