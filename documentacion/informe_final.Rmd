@@ -7,7 +7,15 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE,
+  message = FALSE,
+  fig.width = 9,
+  fig.height = 5.5,
+  fig.align = "center"
+)
+library(tidyverse)
+library(knitr)
+library(scales)
 ```
 
 # Resumen {-}
@@ -63,6 +71,7 @@ vars_df <- data.frame(
              "Razón", "Razón (Discreta)", "Razón (Continua)", "Nominal",
              "Nominal", "Intervalo / Temporal", "Nominal (Binaria)")
 )
+knitr::kable(vars_df, caption = "Tabla 1.1: Variables consideradas y tipos de datos en R")
 ```
 
 
@@ -73,3 +82,125 @@ El universo consta de 12,575 transacciones originales, abarcando una muestra dep
 ## Periodo de Referencia
 
 Las transacciones corresponden al período comprendido entre el **01 de enero de 2022** y el **18 de enero de 2025**.
+
+# Capítulo 2: Marco Teórico
+
+## Bases Teóricas
+
+### Estrategias de Descuento y Elasticidad Precio de la Demanda
+
+En microeconomía del comercio minorista (*retail*), las rebajas promocionales representan mecanismos de discriminación de precios diseñados para dinamizar el inventario y estimular la demanda. La teoría económica señala que, para bienes con demanda inelástica ($|\varepsilon_p| < 1$), una disminución en el precio no induce un incremento proporcional suficiente en las unidades compradas, lo que puede estancar o mermar el ingreso bruto por transacción.
+
+### Comercio Omnicanal: Online vs. In-store
+
+La gestión omnicanal integra las tiendas físicas tradicionales y las plataformas de comercio digital. Mientras el canal virtual prioriza la conveniencia operativa y la agilidad de búsqueda, el canal presencial ofrece inmediatez física y contacto tangible con los artículos. El análisis del ticket promedio y la penetración de medios de pago entre ambos entornos permite asignar recursos logísticos y de inventario con precisión técnica.
+
+### Medios de Pago y Fricción Transaccional
+
+La desmaterialización del dinero (tarjetas de crédito y billeteras digitales) reduce la fricción psicológica del gasto, facilitando transacciones de mayor volumen monetario. Por su parte, el efectivo físico impone una restricción de liquidez inmediata, incidiendo directamente en el tamaño de la canasta comercial.
+
+### Métricas Estadísticas Descriptivas y Resiliencia
+
+El análisis descriptivo emplea medidas de tendencia central (media aritmética $\bar{x}$, mediana $Me$) y de dispersión (desviación estándar $s$, rango intercuartílico $IQR$). En distribuciones de gasto con asimetría positiva (*skewed right*), la mediana constituye la medida de localización más robusta frente a la influencia de valores extremos.
+
+# Capítulo 3: Marco Metódico
+
+## Limpieza y Preprocesamiento de Datos (Tratamiento de N/A)
+
+Se importan los datos directamente desde el repositorio en GitHub mediante su URL cruda y se diagnostica la presencia de valores faltantes:
+
+```{r}
+url_datos <- ("https://github.com/ronaldchrr2703/trabajo-final-computacion-1/raw/refs/heads/main/documentacion/retail_store_sales.csv")
+raw_data <- readr::read_csv(url_datos, show_col_types = FALSE)
+nas_resumen <- data.frame(
+  Variable = names(raw_data),
+  Valores_Nulos = sapply(raw_data, function(x) sum(is.na(x)))
+)
+knitr::kable(nas_resumen, caption = "Tabla 3.1: Diagnóstico de Valores Faltantes (N/A)")
+```
+
+
+## Limpieza y Preprocesamiento de Datos (Tratamiento de N/A)
+
+Se diagnostica formalmente la presencia de valores faltantes en cada variable:
+
+```{r}
+nas_resumen <- data.frame(
+  Variable = names(raw_data),
+  Valores_Nulos = sapply(raw_data, function(x) sum(is.na(x)))
+)
+knitr::kable(nas_resumen, caption = "Tabla 3.1: Diagnóstico de Valores Faltantes (N/A)")
+```
+
+
+### Justificación Metódica del Tratamiento de N/A
+
+1. **Recuperación Exacta de `Price Per Unit` (609 casos):** Al verificar la identidad aritmética $Total\ Spent = Price\ Per\ Unit \times Quantity$, en las 609 filas con precio nulo pero con cantidad y gasto conocidos, el precio se deduce de forma determinista mediante:
+$$\widehat{Price\ Per\ Unit} = \frac{Total\ Spent}{Quantity}$$
+2. **Exclusión Justificada de Registros Vacíos Simultáneos (604 casos):** Existen 604 observaciones donde `Quantity` y `Total Spent` son nulos simultáneamente. Al carecer de ambas magnitudes clave, no es posible deducir su valor sin introducir supuestos arbitrarios, por lo que se eliminan para preservar la pureza muestral.
+3. **Manejo de `Discount Applied`:** Al comparar con y sin descuento se toman las 7,983 transacciones confirmadas (`True` y `False`), dejando documentados los registros sin etiqueta.
+
+```{r}
+df_clean <- raw_data %>%
+  mutate(
+    Price_Per_Unit_Clean = ifelse(is.na(`Price Per Unit`) & !is.na(`Total Spent`) & !is.na(`Quantity`),
+                                  `Total Spent` / `Quantity`,
+                                  `Price Per Unit`),
+    Total_Spent_Clean = `Total Spent`
+  ) %>%
+  filter(!is.na(Quantity) & !is.na(`Total Spent`)) %>%
+  mutate(
+    Category = as.factor(Category),
+    Location = as.factor(Location),
+    Payment_Method = as.factor(`Payment Method`),
+    Transaction_Date = as.Date(`Transaction Date`),
+    Discount_Status = as.factor(`Discount Applied`)
+  )
+
+cat("Muestra depurada final:", nrow(df_clean), "transacciones válidas.\n")
+```
+
+
+## Detección y Gestión de Valores Atípicos (Outliers)
+
+Se utiliza el criterio del Rango Intercuartílico ($IQR$) de Tukey:
+$$\text{Límite Superior} = Q_3 + 1.5 \times IQR \quad , \quad \text{Límite Inferior} = Q_1 - 1.5 \times IQR$$
+
+```{r}
+detectar_outliers <- function(x) {
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr_val <- q3 - q1
+  lim_inf <- q1 - 1.5 * iqr_val
+  lim_sup <- q3 + 1.5 * iqr_val
+  outliers <- which(x < lim_inf | x > lim_sup)
+  return(c(Q1 = q1, Q3 = q3, IQR = iqr_val, Lim_Inf = lim_inf, Lim_Sup = lim_sup, Outliers = length(outliers)))
+}
+
+tabla_outliers <- data.frame(
+  Variable = c("Price Per Unit", "Quantity", "Total Spent"),
+  rbind(
+    detectar_outliers(df_clean$Price_Per_Unit_Clean),
+    detectar_outliers(df_clean$Quantity),
+    detectar_outliers(df_clean$Total_Spent_Clean)
+  )
+)
+knitr::kable(tabla_outliers, digits = 2, caption = "Tabla 3.2: Detección de Valores Atípicos por Método IQR")
+```
+
+
+```{r}
+p1 <- ggplot(df_clean, aes(y = Total_Spent_Clean)) +
+  geom_boxplot(fill = "#3498db", outlier.colour = "red", alpha = 0.7) +
+  labs(title = "Distribución de Total Spent", y = "Gasto Total ($)") +
+  theme_minimal()
+
+p2 <- ggplot(df_clean, aes(y = Quantity)) +
+  geom_boxplot(fill = "#2ecc71", alpha = 0.7) +
+  labs(title = "Distribución de Quantity", y = "Cantidad (unidades)") +
+  theme_minimal()
+
+# Agregar el prefijo gridExtra::
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+```
+
